@@ -33,10 +33,13 @@ done
 
 echo ""
 echo "Creating zip without binaries..."
-zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" "${BIN_DIR}/*" ".shellcheckrc" >/dev/null
+zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}.zip" . -x "*.git*" "dist/*" "tests/*" "docs/*" "*.zip" "*.json" "*.md" "${BIN_DIR}/*" ".shellcheckrc" >/dev/null
 
+for ARCH in arm arm64; do
+  (cd "$BIN_DIR" && sha256sum "tailscaled-$ARCH" > "SHA256SUMS-$ARCH")
+done
 echo "Creating zip with binaries..."
-zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip" . -x "*.git*" "dist/*" "*.zip" "*.json" "*.md" ".shellcheckrc" >/dev/null
+zip -9 -r "${DIST_DIR}/Magisk-Tailscaled-${VERSION}-full.zip" . -x "*.git*" "dist/*" "tests/*" "docs/*" "*.zip" "*.json" "*.md" ".shellcheckrc" >/dev/null
 
 rm -f "$BIN_DIR"/*
 

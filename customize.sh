@@ -61,22 +61,31 @@ arm64) F_ARCH="aarch64" ;;
 esac
 ui_print "- Detected architecture: $ARCH"
 
+# Keep an existing v2 deployment intact. A lightweight ZIP may still be used
+# for fresh installs; existing deployments require the verified full payload.
 if [ -d "$TS_DIR" ]; then
-	[ -f "$TS_DIR/tmp/tailscaled.state" ] && mv -f "$TS_DIR/tmp/tailscaled.state" "$TS_DIR/tailscaled.state"
-	ui_print "- Backup old files"
-	PROP_FILE="$(echo "$MODPATH" | sed 's/_update//')/module.prop"
-	[ ! -f "$PROP_FILE" ] && PROP_FILE="$MODPATH/module.prop"
-	versionCode=$(grep '^versionCode=' "$PROP_FILE" | cut -d= -f2)
-	# shellcheck disable=SC2154
-	rm -rf "$TS_DIR/backups/$versionCode/" && mkdir -p "$TS_DIR/backups/$versionCode/"
-	for p in "$TS_DIR"/*; do
-		case "$(basename "$p")" in
-		ssh | certs | backups | tailscaled.state) ;;
-		*)
-			mv -f -- "$p" "$TS_DIR/backups/$versionCode/"
-			;;
-		esac
-	done
+ ui_print "- Preserving external settings, scripts, keys and login state"
+ unzip -qqo "$ZIPFILE" -x 'META-INF/*' 'tailscale/*' -d "$MODPATH" || abort "Unable to stage module files"
+ mkdir -p "$MODPATH/updater/bin" "$MODPATH/system/bin" || abort "Unable to create staging directories"
+ unzip -qqjo "$ZIPFILE" "tailscale/bin/*-$ARCH" -d "$MODPATH/updater/bin" 2>/dev/null || true
+ unzip -qqjo "$ZIPFILE" "tailscale/bin/SHA256SUMS-$ARCH" -d "$MODPATH/updater/bin" 2>/dev/null || true
+ # Preserve the existing module-specific boot hook. General service.d hooks
+ # remain untouched. No postinstall restart that would clear the run directory.
+ ACTIVE_MODPATH="$(echo "$MODPATH" | sed 's/_update//')"
+ if [ "$ACTIVE_MODPATH" != "$MODPATH" ] && [ -f "$ACTIVE_MODPATH/service.sh" ]; then
+  cp -p "$ACTIVE_MODPATH/service.sh" "$MODPATH/service.sh" || abort "Unable to preserve boot hook"
+ elif [ -f "$SERVICE_DIR/tailscaled_service.sh" ]; then
+  rm -f "$MODPATH/service.sh"
+ fi
+ for binary in "$TS_BIN_DIR"/*; do
+  [ -e "$binary" ] || continue
+  ln -sf "$binary" "$MODPATH/system/bin/" || abort "Unable to stage command alias"
+ done
+ ln -sf "$TS_SCRIPTS_DIR/tailscaled.service" "$MODPATH/system/bin/" || abort "Unable to stage service alias"
+ set_perm_recursive "$MODPATH/updater" 0 0 0755 0755 "u:object_r:system_file:s0"
+ sh "$MODPATH/updater/scripts/prepare.sh" "$MODPATH" "$ARCH" || abort "Safe core update refused or rolled back; inspect /data/adb/tailscale/backups"
+ ui_print "- Existing configuration preserved. Module update staged successfully."
+ return 0
 fi
 
 mkdir -p "$TS_BIN_DIR"

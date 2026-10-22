@@ -258,3 +258,6 @@ Any improvements is required, any PR is verry required, not just welcome.
 ## License
 
 Released under [BSD 3-Clause License](/LICENSE).
+### Existing v2 updates
+
+See [safe full-ZIP updates](docs/safe-updates.md) for preserved settings, backup, rollback, supported layouts and validation limits.
